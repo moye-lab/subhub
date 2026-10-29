@@ -1,0 +1,12 @@
+services:
+  subhub:
+    build: .
+    container_name: subhub
+    restart: unless-stopped
+    ports:
+      - "18080:8080"
+    environment:
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>SubHub - 多 VPS 节点订阅与分流管理中心</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#6366f1', 600: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    [v-cloak] { display: none; }
+    .safe-bottom { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+    .nav-safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-200">
+<div id="app" v-cloak>
+
+  <!-- 全局轻提示 Toast -->
+  <transition
+    enter-active-class="transition ease-out duration-200"
+    enter-from-class="opacity-0 -translate-y-2"
+    enter-to-class="opacity-100 translate-y-0"
+    leave-active-class="transition ease-in duration-150"
+    leave-from-class="opacity-100 translate-y-0"
+    leave-to-class="opacity-0 -translate-y-2">
+    <div v-if="toast.show" class="fixed top-4 right-4 left-4 sm:left-auto z-[100] flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg border text-xs sm:text-sm font-medium"
+      :class="toast.type === 'error' ? 'bg-red-600 text-white border-red-500' : 'bg-slate-900 dark:bg-indigo-600 text-white border-slate-700 dark:border-indigo-500'">
+      <svg v-if="toast.type !== 'error'" class="w-4 h-4 shrink-0 text-emerald-400 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      <svg v-else class="w-4 h-4 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span>{{ toast.msg }}</span>
+    </div>
+  </transition>
+
+  <!-- ==================== 登录视图 ==================== -->
+  <div v-if="!authed" class="min-h-screen flex flex-col justify-center items-center px-4">
+    <div class="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-7 shadow-xl">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 dark:text-white leading-none">SubHub</h1>
+            <p class="text-xs text-slate-400 mt-1">多 VPS 节点订阅与分流管理中心</p>
+          </div>
+        </div>
+        <button @click="toggleTheme" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <svg v-if="isDark" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </button>
+      </div>
+
+      <form @submit.prevent="doLogin" class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">管理员密码</label>
+          <input v-model="loginPassword" type="password" required autofocus placeholder="请输入管理员密码..."
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:outline-none text-sm" />
+        </div>
+        <button type="submit" :disabled="loading" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium text-sm transition shadow-sm">
+          {{ loading ? '正在验证...' : '登录控制台' }}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== 主控制台视图 (黄金 4 栏架构) ==================== -->
+  <div v-else class="min-h-screen flex flex-col safe-bottom sm:pb-10">
+
+    <!-- 顶部固定导航栏 -->
+    <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+        <!-- 品牌标识 -->
+        <div class="flex items-center gap-2.5 shrink-0">
+          <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <span class="font-bold text-base text-slate-900 dark:text-white tracking-tight">SubHub</span>
+        </div>
+
+        <!-- 桌面端核心 4 栏胶囊导航 -->
+        <nav class="hidden sm:flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800/80">
+          <button v-for="t in tabs" :key="t.id" @click="activeTab = t.id"
+            class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5"
+            :class="activeTab === t.id ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
+            <span>{{ t.label }}</span>
+            <span v-if="t.count !== null" class="px-1.5 py-0.2 rounded text-[10px]"
+              :class="activeTab === t.id ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'bg-slate-200/70 dark:bg-slate-800 text-slate-500'">
+              {{ t.count }}
+            </span>
+          </button>
+        </nav>
+
+        <!-- 右侧全局快捷操作 -->
+        <div class="flex items-center gap-2 shrink-0">
+          <button @click="showAddNodeModal = true" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition flex items-center gap-1 shadow-sm">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span>添加节点</span>
+          </button>
+          <button @click="openPreview('mihomo')" title="预览配置" class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 transition hidden md:flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+            <span>配置预览</span>
+          </button>
+          <button @click="toggleTheme" title="切换深浅色" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+            <svg v-if="isDark" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </button>
+          <button @click="logout" title="退出登录" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主内容容器 -->
+    <main class="max-w-6xl w-full mx-auto px-4 sm:px-6 pt-5 space-y-5">
+
+      <!-- 顶部单排四格紧凑状态栏 (PC 与手机均保持单排 4 列) -->
+      <section class="grid grid-cols-4 gap-2 sm:gap-3.5">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+            <span class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">生效节点</span>
+          </div>
+          <span class="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-0">{{ parsedCount }}</span>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+            <span class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">自建/订阅</span>
+          </div>
+          <span class="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-0">
+            {{ enabledNodesCount }}<small class="text-[11px] text-slate-400 font-normal">+{{ totalSubCachedCount }}</small>
+          </span>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+            <span class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">分流规则</span>
+          </div>
+          <span class="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-0">
+            {{ customRules.length }}<small class="text-[11px] text-slate-400 font-normal">条</small>
+          </span>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-sky-500 shrink-0"></span>
+            <span class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">AI 可用</span>
+          </div>
+          <span class="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-0.5 sm:mt-0">{{ aiAvailableCount }}</span>
+        </div>
+      </section>
+
+      <!-- ==================== Tab 1: 订阅概览 (首屏高频工作台) ==================== -->
+      <div v-if="activeTab === 'home'" class="space-y-5">
+
+        <!-- 4 大主流客户端订阅卡片 (2x2 矩阵) -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">多端订阅链接分发</h2>
+              <p class="text-xs text-slate-400 mt-0.5">支持一键复制、扫码导入或直接唤起客户端（已内置 AI 防封锁与自定义分流规则）</p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <button @click="openPreview('mihomo')" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 transition">
+                YAML / JSON 预览
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <!-- 1. Mihomo / Clash Meta -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">Mihomo / Clash Meta</span>
+                  <span class="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-medium">.mrs 分流</span>
+                </div>
+                <div class="mt-2.5 px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 font-mono text-[11px] text-slate-400 truncate select-all">
+                  {{ subUrl('mihomo') }}
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5 mt-3">
+                <button @click="copyText(subUrl('mihomo'))" class="py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">复制</button>
+                <a :href="clashImportUrl" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-center text-xs font-medium transition">导入</a>
+                <button @click="openQrModal('Mihomo / Clash 扫码订阅', subUrl('mihomo'))" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium transition">二维码</button>
+              </div>
+            </div>
+
+            <!-- 2. Sing-box 专属配置 -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-cyan-600 dark:text-cyan-400">Sing-box 客户端</span>
+                  <span class="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-medium">JSON 路由</span>
+                </div>
+                <div class="mt-2.5 px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 font-mono text-[11px] text-slate-400 truncate select-all">
+                  {{ subUrl('singbox') }}
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5 mt-3">
+                <button @click="copyText(subUrl('singbox'))" class="py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition">复制</button>
+                <a :href="singboxImportUrl" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-center text-xs font-medium transition">导入</a>
+                <button @click="openQrModal('Sing-box 扫码订阅', subUrl('singbox'))" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium transition">二维码</button>
+              </div>
+            </div>
+
+            <!-- 3. Shadowrocket / Base64 -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-amber-600 dark:text-amber-400">Shadowrocket / Base64</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-medium">小火箭 / v2rayN</span>
+                </div>
+                <div class="mt-2.5 px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 font-mono text-[11px] text-slate-400 truncate select-all">
+                  {{ subUrl('base64') }}
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5 mt-3">
+                <button @click="copyText(subUrl('base64'))" class="py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition">复制</button>
+                <a :href="shadowrocketImportUrl" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-center text-xs font-medium transition">唤起</a>
+                <button @click="openQrModal('Shadowrocket 扫码订阅', subUrl('base64'))" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium transition">二维码</button>
+              </div>
+            </div>
+
+            <!-- 4. 智能自适应裸链 & Proxy-Provider -->
+            <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">UA 智能自适应 / Provider</span>
+                  <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium">通用链接</span>
+                </div>
+                <div class="mt-2.5 px-2.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 font-mono text-[11px] text-slate-400 truncate select-all">
+                  {{ autoSubUrl }}
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5 mt-3">
+                <button @click="copyText(autoSubUrl)" class="py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition">复制自适应</button>
+                <button @click="copyText(subUrl('proxies'))" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium transition">复制Provider</button>
+                <button @click="openQrModal('智能自适应订阅二维码', autoSubUrl)" class="py-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium transition">二维码</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下半部分：左侧 VPS 分组速控 + 右侧生效节点一览 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <!-- 左侧：VPS 分组快捷开关 -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-3.5">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">VPS 服务器分组速控</h3>
+                <button @click="activeTab = 'nodes'" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">管理全部 →</button>
+              </div>
+
+              <div v-if="Object.keys(groupedNodes).length === 0" class="py-8 text-center text-xs text-slate-400">
+                暂未添加自建 VPS 节点
+              </div>
+
+              <div v-else class="space-y-2.5">
+                <div v-for="(list, tag) in groupedNodes" :key="tag"
+                  class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{{ tag }}</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">
+                      启用 {{ list.filter(i => i.enabled).length }} / 共 {{ list.length }} 节点
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button @click="openAddForVps(tag)" class="px-2 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 text-xs font-medium">+加</button>
+                    <button v-if="list.some(i => !i.enabled)" @click="batchToggle(tag, true)" class="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">启用</button>
+                    <button v-else @click="batchToggle(tag, false)" class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">停用</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button @click="showAddNodeModal = true" class="mt-4 w-full py-2.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-500 transition">
+              + 批量添加新 VPS 节点
+            </button>
+          </div>
+
+          <!-- 右侧：当前汇总生效节点列表 -->
+          <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3.5">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">当前生效节点列表 ({{ filteredParsedProxies.length }})</h3>
+                <p class="text-[11px] text-slate-400">按优先级排序，已自动注入国旗 Emoji 并同步至所有订阅格式</p>
+              </div>
+              <input v-model="dashboardSearch" type="text" placeholder="搜索生效节点名或服务器..."
+                class="w-full sm:w-56 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:border-indigo-500 focus:outline-none" />
+            </div>
+
+            <div v-if="filteredParsedProxies.length === 0" class="py-10 text-center text-xs text-slate-400">
+              暂无匹配的生效节点
+            </div>
+
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
+              <div v-for="(p, idx) in filteredParsedProxies" :key="idx"
+                class="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{{ p.name }}</div>
+                  <div class="text-[11px] text-slate-400 font-mono truncate mt-0.5">{{ p.server }}:{{ p.port }}</div>
+                </div>
+                <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase" :class="protocolBadgeClass(p.type)">
+                  {{ p.type }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ==================== Tab 2: 节点与订阅源 (统一资源页) ==================== -->
+      <div v-if="activeTab === 'nodes'" class="space-y-6">
+
+        <!-- 上半部分：自建 VPS 节点管理 -->
+        <div class="space-y-4">
+          <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-sm">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+              <input v-model="nodeSearch" type="text" placeholder="搜索节点名称、IP、端口或协议..."
+                class="flex-1 max-w-xs px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:border-indigo-500 focus:outline-none" />
+              <select v-model="selectedVpsFilter" class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:outline-none">
+                <option value="ALL">全部 VPS 分组 ({{ Object.keys(groupedNodes).length }})</option>
+                <option v-for="tag in Object.keys(groupedNodes)" :key="tag" :value="tag">{{ tag }} ({{ groupedNodes[tag].length }})</option>
+              </select>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button v-if="selectedNodeIds.length > 0" @click="batchDeleteSelected" class="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-medium transition">
+                删除选中 ({{ selectedNodeIds.length }})
+              </button>
+              <button @click="pingAllNodes" :disabled="pinging" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition flex items-center gap-1">
+                <span>⚡ {{ pinging ? '测速中...' : '一键 TCP 测速' }}</span>
+              </button>
+              <button @click="showAddNodeModal = true" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">
+                + 添加节点
+              </button>
+            </div>
+          </div>
+
+          <div v-if="Object.keys(filteredGroupedNodes).length === 0" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-10 text-center text-xs text-slate-400">
+            暂无自建 VPS 节点，点击右上角「+ 添加节点」批量导入
+          </div>
+
+          <div v-for="(groupList, tag) in filteredGroupedNodes" :key="tag"
+            class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+            <div class="px-4 sm:px-5 py-3 bg-slate-50/80 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold">{{ tag }}</span>
+                <span class="text-xs text-slate-400">启用 {{ groupList.filter(i => i.enabled).length }} / {{ groupList.length }}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button @click="openAddForVps(tag)" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-medium">+ 添加</button>
+                <button @click="batchToggle(tag, true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">全启</button>
+                <button @click="batchToggle(tag, false)" class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">全停</button>
+              </div>
+            </div>
+
+            <div class="divide-y divide-slate-100 dark:divide-slate-800/70">
+              <div v-for="n in groupList" :key="n.id"
+                class="px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition"
+                :class="!n.enabled ? 'opacity-50' : ''">
+                <div class="flex items-center gap-3 min-w-0">
+                  <input type="checkbox" :value="n.id" v-model="selectedNodeIds" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer shrink-0" />
+                  <button type="button" @click="toggleNode(n)"
+                    class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200"
+                    :class="n.enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'">
+                    <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                      :class="n.enabled ? 'translate-x-4' : 'translate-x-0'"></span>
+                  </button>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0" :class="protocolBadgeClass(extractProtocol(n.uri))">
+                    {{ extractProtocol(n.uri) }}
+                  </span>
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{{ displayNodeTitle(n) }}</span>
+                      <span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-400 shrink-0">优先级 {{ n.priority }}</span>
+                      <!-- TCP 测速延迟徽章 -->
+                      <span v-if="pingResults[n.id]" class="px-2 py-0.5 rounded text-[10px] font-semibold"
+                        :class="pingBadgeClass(pingResults[n.id])">
+                        {{ pingResults[n.id].status === 'online' ? pingResults[n.id].latency + ' ms' : '超时' }}
+                      </span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 font-mono truncate max-w-lg">{{ extractHostPort(n.uri) }}</div>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-1.5 shrink-0">
+                  <button @click="copyText(n.uri)" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">复制</button>
+                  <button @click="openQrModal(displayNodeTitle(n), n.uri)" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">二维码</button>
+                  <button @click="openEditNodeModal(n)" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-xs text-indigo-600 dark:text-indigo-400">编辑</button>
+                  <button @click="removeNode(n.id)" class="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs text-red-500">删除</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下半部分：外部面板与远程订阅源聚合 -->
+        <div class="space-y-4 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+          <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">外部远程订阅源聚合 ({{ subscriptions.length }})</h3>
+              <p class="text-xs text-slate-400 mt-0.5">接入其他 VPS 面板订阅（3x-ui / Clash YAML / Base64），后台每 6 小时自动同步并本地缓存兜底</p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <button @click="refreshSubs" :disabled="refreshingSubs" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition">
+                {{ refreshingSubs ? '正在同步...' : '立即同步全部' }}
+              </button>
+              <button @click="showAddSubModal = true" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">
+                + 添加外部订阅
+              </button>
+            </div>
+          </div>
+
+          <div v-if="subscriptions.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div v-for="s in subscriptions" :key="s.id"
+              class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between gap-3 shadow-sm">
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <button type="button" @click="toggleSub(s)"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200"
+                      :class="s.enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'">
+                      <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200"
+                        :class="s.enabled ? 'translate-x-4' : 'translate-x-0'"></span>
+                    </button>
+                    <span class="text-sm font-bold text-slate-900 dark:text-white">{{ s.name }}</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                    缓存 {{ (s.cached_proxies || []).length }} 节点
+                  </span>
+                </div>
+                <div class="mt-2.5 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800 text-[11px] font-mono text-slate-400 truncate">
+                  {{ s.url }}
+                </div>
+                <div class="flex flex-wrap items-center gap-3 mt-2.5 text-[11px] text-slate-400">
+                  <span>前缀: {{ s.prefix || '无' }}</span>
+                  <span>•</span>
+                  <span>过滤: {{ s.exclude_regex || '无' }}</span>
+                </div>
+              </div>
+              <div class="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                <span>更新: {{ s.last_updated || '未刷新' }}</span>
+                <div class="flex gap-1.5">
+                  <button @click="openEditSubModal(s)" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs">编辑</button>
+                  <button @click="removeSub(s.id)" class="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 text-xs">删除</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== Tab 3: 分流与策略组 (左组右规并排双栏) ==================== -->
+      <div v-if="activeTab === 'routing'" class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+
+        <!-- 左栏 (1/3)：自定义分流组 (策略组) -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">自定义分流组</h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">同步生成至 Mihomo 与 Sing-box</p>
+            </div>
+            <button @click="openAddGroupModal" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">
+              + 新建组
+            </button>
+          </div>
+
+          <div v-if="customGroups.length === 0" class="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+            暂未创建自定义分流组<br/>（如：🎮 游戏专线 / 🏠 回家直连）
+          </div>
+
+          <div v-else class="space-y-2.5">
+            <div v-for="g in customGroups" :key="g.id"
+              class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800 space-y-2"
+              :class="!g.enabled ? 'opacity-50' : ''">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <input type="checkbox" :checked="g.enabled" @change="toggleGroup(g)" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer" />
+                  <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">{{ g.name }}</span>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono uppercase shrink-0">
+                  {{ g.type }}
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-400 flex flex-wrap gap-2">
+                <span v-if="g.vps_filter">限定VPS: {{ g.vps_filter }}</span>
+                <span v-if="g.name_regex">匹配: {{ g.name_regex }}</span>
+                <span v-if="!g.vps_filter && !g.name_regex">包含全部节点</span>
+                <span v-if="g.include_direct" class="text-emerald-500">+DIRECT</span>
+              </div>
+              <div class="flex justify-end gap-1.5 pt-1 border-t border-slate-200/50 dark:border-slate-800/60">
+                <button @click="openEditGroupModal(g)" class="px-2 py-0.5 rounded text-[11px] text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10">编辑</button>
+                <button @click="removeGroup(g.id)" class="px-2 py-0.5 rounded text-[11px] text-red-500 hover:bg-red-500/10">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右栏 (2/3)：自定义分流规则 -->
+        <div class="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">自定义高优分流规则 ({{ customRules.length }})</h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">置顶注入于内置规则集之前，支持域名、关键字、IP 段与进程名</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button @click="openAddRuleModal" class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">
+                + 添加分流规则
+              </button>
+            </div>
+          </div>
+
+          <!-- 快捷规则预设栏 -->
+          <div class="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800 text-xs">
+            <span class="text-[11px] text-slate-400 font-medium">⚡ 快捷导入预设：</span>
+            <button @click="applyRulePreset('dev')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-[11px] transition">
+              + GitHub / Docker / Linux.do 走代理
+            </button>
+            <button @click="applyRulePreset('lan')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-[11px] transition">
+              + 家庭内网 / NAS 域名直连
+            </button>
+            <button @click="applyRulePreset('steam')" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-[11px] transition">
+              + Steam 下载 CDN 直连
+            </button>
+          </div>
+
+          <input v-model="ruleSearch" type="text" placeholder="搜索已添加的域名、IP、策略组或备注..."
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs focus:border-indigo-500 focus:outline-none" />
+
+          <div v-if="filteredCustomRules.length === 0" class="py-10 text-center text-xs text-slate-400">
+            暂无自定义分流规则，可点击上方按钮或快捷预设添加
+          </div>
+
+          <div v-else class="divide-y divide-slate-100 dark:divide-slate-800/70 max-h-[28rem] overflow-y-auto pr-1">
+            <div v-for="r in filteredCustomRules" :key="r.id"
+              class="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              :class="!r.enabled ? 'opacity-45' : ''">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <input type="checkbox" :checked="r.enabled" @change="toggleRule(r)" class="w-4 h-4 accent-indigo-600 rounded cursor-pointer shrink-0" />
+                <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono text-slate-600 dark:text-slate-300 shrink-0">
+                  {{ r.rule_type }}
+                </span>
+                <span class="text-xs font-mono font-semibold text-slate-900 dark:text-white truncate">{{ r.value }}</span>
+                <span class="text-xs text-slate-400 shrink-0">→</span>
+                <span class="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-medium shrink-0">
+                  {{ r.target }}
+                </span>
+                <span v-if="r.comment" class="text-[11px] text-slate-400 truncate hidden md:inline">({{ r.comment }})</span>
+              </div>
+              <div class="flex items-center justify-end gap-1.5 shrink-0">
+                <button @click="openEditRuleModal(r)" class="px-2 py-1 rounded text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10">编辑</button>
+                <button @click="removeRule(r.id)" class="px-2 py-1 rounded text-xs text-red-500 hover:bg-red-500/10">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ==================== Tab 4: 系统设置与备份维护 ==================== -->
+      <div v-if="activeTab === 'settings'" class="space-y-5">
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <!-- 左卡：测速与命名参数 -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+            <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">全局策略与命名设置</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">订阅配置文件名</label>
+                <input v-model="settings.sub_filename" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">自动测速 URL</label>
+                <input v-model="settings.test_url" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">测速间隔 (秒)</label>
+                <input v-model.number="settings.test_interval" type="number" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-slate-500 dark:text-slate-400 mb-1">测速容差 (ms)</label>
+                <input v-model.number="settings.test_tolerance" type="number" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-4 pt-1 text-xs">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="settings.auto_emoji" class="w-4 h-4 accent-indigo-600 rounded" />
+                <span>自动注入地区国旗 Emoji</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="settings.prepend_vps_tag" class="w-4 h-4 accent-indigo-600 rounded" />
+                <span>附加 `[VPS分组]` 前缀</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="settings.udp_default" class="w-4 h-4 accent-indigo-600 rounded" />
+                <span>默认开启 UDP</span>
+              </label>
+            </div>
+            <div class="pt-2 flex justify-end">
+              <button @click="saveSettings" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium transition">
+                保存全局设置
+              </button>
+            </div>
+          </div>
+
+          <!-- 右卡：安全密码、Token 重置与全量数据备份 -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-4">
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">安全与数据备份迁移</h3>
+                <button @click="resetToken" class="px-3 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium transition">
+                  重置订阅 Token
+                </button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <input v-model="pwdForm.old_password" type="password" placeholder="当前管理员密码"
+                  class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+                <div class="flex gap-2">
+                  <input v-model="pwdForm.new_password" type="password" placeholder="新管理员密码"
+                    class="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+                  <button @click="changePassword" class="px-3.5 py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-indigo-600 text-white font-medium shrink-0 transition">
+                    改密
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div class="text-xs font-semibold text-slate-800 dark:text-slate-200">全量配置备份与恢复</div>
+                <div class="text-[11px] text-slate-400">包含所有节点、订阅源、自定义分流规则与基础模板</div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button @click="exportBackup" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition">
+                  导出备份
+                </button>
+                <label class="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-medium cursor-pointer transition">
+                  <span>恢复备份</span>
+                  <input type="file" accept=".json" @change="importBackup" class="hidden" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部折叠式 Mihomo YAML 底座模板编辑器 -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          <button @click="showTemplateEditor = !showTemplateEditor"
+            class="w-full px-5 py-3.5 flex items-center justify-between text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+            <span>高级：Mihomo 底层 DNS 与 Rule-Providers 模板编辑器 (`base_template.yaml`)</span>
+            <span class="text-xs text-slate-400 font-normal">{{ showTemplateEditor ? '收起编辑器 ▲' : '展开编辑 ▼' }}</span>
+          </button>
+          <div v-if="showTemplateEditor" class="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-xs text-slate-400">修改底层 DNS、Sniffer 或默认规则集，保存后立即生效</p>
+              <button @click="saveTemplateContent" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium transition">
+                保存 YAML 模板
+              </button>
+            </div>
+            <textarea v-model="templateContent" rows="16" spellcheck="false"
+              class="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono leading-relaxed text-slate-800 dark:text-slate-200 focus:border-indigo-500 focus:outline-none"></textarea>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <!-- 移动端底部固定 4 栏导航 -->
+    <nav class="sm:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 nav-safe-bottom">
+      <div class="grid grid-cols-4 h-14">
+        <button v-for="t in tabs" :key="t.id" @click="activeTab = t.id"
+          class="flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition"
+          :class="activeTab === t.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'">
+          <span v-html="t.icon" class="w-5 h-5"></span>
+          <span>{{ t.label }}</span>
+        </button>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- ==================== 弹窗: 批量添加节点 ==================== -->
+  <div v-if="showAddNodeModal" @click.self="showAddNodeModal = false" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">批量导入 / 添加 VPS 节点</h3>
+        <button @click="showAddNodeModal = false" class="text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+      <div class="grid grid-cols-3 gap-3 text-xs">
+        <div class="col-span-2">
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">所属 VPS 分组标签</label>
+          <input v-model="newNodeForm.vps_tag" list="vpsList" placeholder="例如: VPS-A 洛杉矶"
+            class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+          <datalist id="vpsList">
+            <option v-for="tag in Object.keys(groupedNodes)" :key="tag" :value="tag"></option>
+          </datalist>
+        </div>
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">优先级 (越小越优)</label>
+          <input v-model.number="newNodeForm.priority" type="number"
+            class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">分享链接列表 (每行一条，支持 vless / hy2 / tuic / trojan / ss / vmess / YAML)</label>
+        <textarea v-model="newNodeForm.raw_input" rows="5"
+          placeholder="vless://uuid@ip:port?security=reality...#节点名&#10;hysteria2://password@ip:port?...#节点名"
+          class="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono focus:outline-none"></textarea>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button @click="showAddNodeModal = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-medium">取消</button>
+        <button @click="submitNodes" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium">解析并导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: 编辑单节点 ==================== -->
+  <div v-if="editingNode" @click.self="editingNode = null" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-3.5 text-xs">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">编辑节点信息</h3>
+        <button @click="editingNode = null" class="text-slate-400">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">VPS 分组标签</label>
+          <input v-model="editingNode.vps_tag" list="vpsList" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+        </div>
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">优先级</label>
+          <input v-model.number="editingNode.priority" type="number" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">自定义节点别名 (留空则使用链接自带名称)</label>
+        <input v-model="editingNode.name" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">节点链接</label>
+        <textarea v-model="editingNode.uri" rows="3" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button @click="editingNode = null" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium">取消</button>
+        <button @click="saveEditNode" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-medium">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: 新增/编辑外部订阅源 ==================== -->
+  <div v-if="showAddSubModal || editingSub" @click.self="closeSubModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-3.5 text-xs">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">{{ editingSub ? '编辑远程订阅源' : '添加远程订阅源' }}</h3>
+        <button @click="closeSubModal" class="text-slate-400">✕</button>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">订阅源名称</label>
+        <input v-model="activeSubForm.name" placeholder="例如: VPS-C 面板 / 备用机场" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">订阅 URL 地址</label>
+        <input v-model="activeSubForm.url" placeholder="https://..." class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">节点前缀 (选填)</label>
+          <input v-model="activeSubForm.prefix" placeholder="[VPS-C] " class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+        </div>
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">排除关键字正则</label>
+          <input v-model="activeSubForm.exclude_regex" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button @click="closeSubModal" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium">取消</button>
+        <button @click="editingSub ? saveEditSub() : submitSub()" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-medium">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: 新建/编辑自定义分流组 ==================== -->
+  <div v-if="showGroupModal" @click.self="showGroupModal = false" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-3.5 text-xs">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">{{ editingGroupId ? '编辑自定义分流组' : '新建自定义分流组' }}</h3>
+        <button @click="showGroupModal = false" class="text-slate-400">✕</button>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">分流组名称 (点击下方标签可快速填入)</label>
+        <input v-model="groupForm.name" placeholder="如: 🎮 游戏加速" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          <button type="button" v-for="preset in ['🎮 游戏加速', '💻 开发专线', '🏠 回家内网', '🎬 自建媒体', '📌 指定VPS']" :key="preset"
+            @click="groupForm.name = preset" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300 hover:bg-indigo-500/20">
+            {{ preset }}
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">策略模式</label>
+          <select v-model="groupForm.type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <option value="select">select (手动选择)</option>
+            <option value="url-test">url-test (自动测速)</option>
+            <option value="fallback">fallback (故障转移)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">限定 VPS 分组 (选填)</label>
+          <select v-model="groupForm.vps_filter" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <option value="">不限制 (全部 VPS)</option>
+            <option v-for="tag in Object.keys(groupedNodes)" :key="tag" :value="tag">{{ tag }}</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">按节点名正则筛选 (选填，如: 日本|JP|东京)</label>
+        <input v-model="groupForm.name_regex" placeholder="留空则包含所有符合条件的节点" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+      </div>
+      <label class="flex items-center gap-2 cursor-pointer pt-1">
+        <input type="checkbox" v-model="groupForm.include_direct" class="w-4 h-4 accent-indigo-600 rounded" />
+        <span>在策略组内附带 `DIRECT (直连)` 选项</span>
+      </label>
+      <div class="flex justify-end gap-2 pt-2">
+        <button @click="showGroupModal = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium">取消</button>
+        <button @click="saveGroupForm" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-medium">保存分流组</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: 添加/编辑自定义分流规则 ==================== -->
+  <div v-if="showRuleModal" @click.self="showRuleModal = false" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-3.5 text-xs">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">{{ editingRuleId ? '编辑分流规则' : '添加自定义分流规则' }}</h3>
+        <button @click="showRuleModal = false" class="text-slate-400">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">匹配类型</label>
+          <select v-model="ruleForm.rule_type" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX (域名后缀)</option>
+            <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD (关键字)</option>
+            <option value="DOMAIN">DOMAIN (完整域名)</option>
+            <option value="IP-CIDR">IP-CIDR (IP网段)</option>
+            <option value="PROCESS-NAME">PROCESS-NAME (进程名)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-500 dark:text-slate-400 mb-1">指向目标策略组</label>
+          <select v-model="ruleForm.target" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <option v-for="t in allAvailableTargets" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">
+          匹配内容 {{ editingRuleId ? '' : '(支持换行或逗号分隔一次批量填入多个)' }}
+        </label>
+        <textarea v-model="ruleForm.value" rows="3" placeholder="例如: linux.do, github.com 或 192.168.50.0/24"
+          class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono"></textarea>
+      </div>
+      <div>
+        <label class="block text-slate-500 dark:text-slate-400 mb-1">备注说明 (选填)</label>
+        <input v-model="ruleForm.comment" placeholder="如: 常用技术社区" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button @click="showRuleModal = false" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium">取消</button>
+        <button @click="saveRuleForm" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-medium">保存规则</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: 二维码扫码 ==================== -->
+  <div v-if="qrModal.show" @click.self="qrModal.show = false" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xs p-5 text-center shadow-2xl">
+      <h3 class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ qrModal.title }}</h3>
+      <p class="text-[11px] text-slate-400 mt-0.5">使用小火箭或客户端扫码导入</p>
+      <div class="my-4 flex justify-center">
+        <div id="qrcode-box" class="p-3 bg-white rounded-xl shadow-inner inline-block"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button @click="copyText(qrModal.text)" class="py-2 rounded-xl bg-indigo-600 text-white text-xs font-medium">复制链接</button>
+        <button @click="qrModal.show = false" class="py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-medium">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 弹窗: Mihomo YAML / Sing-box JSON 双引擎预览 ==================== -->
+  <div v-if="previewModal" @click.self="previewModal = false" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 z-50">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[86vh] flex flex-col shadow-2xl">
+      <div class="p-4 px-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <button @click="openPreview('mihomo')"
+            :class="previewTarget === 'mihomo' ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition">
+            Mihomo (YAML)
+          </button>
+          <button @click="openPreview('singbox')"
+            :class="previewTarget === 'singbox' ? 'bg-cyan-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition">
+            Sing-box (JSON)
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <button @click="copyText(previewContent)" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium">复制全文</button>
+          <button @click="previewModal = false" class="px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-medium">关闭</button>
+        </div>
+      </div>
+      <pre class="p-4 overflow-auto text-xs font-mono text-slate-700 dark:text-slate-300 flex-1">{{ previewContent }}</pre>
+    </div>
+  </div>
+
+</div>
+<script>
+const { createApp, nextTick } = Vue;
+
+createApp({
+  data() {
+    return {
+      isDark: localStorage.getItem('subhub_theme') !== 'light',
+      authed: false,
+      loading: false,
+      loginPassword: '',
+      adminToken: localStorage.getItem('subhub_token') || '',
+      toast: { show: false, msg: '', type: 'info' },
+      activeTab: 'home',
+      settings: {},
+      nodes: [],
+      subscriptions: [],
+      customGroups: [],
+      customRules: [],
+      availableTargets: [],
+      parsedCount: 0,
+      parsedProxies: [],
+      templateContent: '',
+      showTemplateEditor: false,
+      dashboardSearch: '',
+      nodeSearch: '',
+      ruleSearch: '',
+      selectedVpsFilter: 'ALL',
+      selectedNodeIds: [],
+      pinging: false,
+      pingResults: {},
+      showAddNodeModal: false,
+      showAddSubModal: false,
+      editingNode: null,
+      editingSub: null,
+      showGroupModal: false,
+      editingGroupId: null,
+      groupForm: { name: '', type: 'select', vps_filter: '', name_regex: '', include_direct: false, enabled: true },
+      showRuleModal: false,
+      editingRuleId: null,
+      ruleForm: { rule_type: 'DOMAIN-SUFFIX', value: '', target: '🚀 节点选择', comment: '', enabled: true },
+      refreshingSubs: false,
+      previewModal: false,
+      previewTarget: 'mihomo',
+      previewContent: '',
+      qrModal: { show: false, title: '', text: '' },
+      pwdForm: { old_password: '', new_password: '' },
+      newNodeForm: { vps_tag: 'VPS-A 主力', raw_input: '', priority: 10 },
+      newSubForm: { name: '', url: '', prefix: '', exclude_regex: '剩余流量|到期|官网|套餐|重置' }
+    };
+  },
+  computed: {
+    tabs() {
+      return [
+        {
+          id: 'home',
+          label: '订阅概览',
+          count: null,
+          icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>'
+        },
+        {
+          id: 'nodes',
+          label: '节点与订阅源',
+          count: this.nodes.length + this.subscriptions.length,
+          icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>'
+        },
+        {
+          id: 'routing',
+          label: '分流与策略组',
+          count: this.customRules.length,
+          icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>'
+        },
+        {
+          id: 'settings',
+          label: '系统设置',
+          count: null,
+          icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>'
+        }
+      ];
+    },
+    activeSubForm() {
+      return this.editingSub || this.newSubForm;
+    },
+    allAvailableTargets() {
+      const defaults = [
+        '🚀 节点选择',
+        '🎯 全球直连',
+        '🤖 AI 专线',
+        '📹 YouTube',
+        '📲 Telegram',
+        '🎬 流媒体服务',
+        '🍎 苹果与微软',
+        '🛑 广告拦截',
+        'DIRECT',
+        'REJECT'
+      ];
+      const customNames = this.customGroups.filter(g => g.enabled).map(g => g.name);
+      return Array.from(new Set([...customNames, ...(this.availableTargets || []), ...defaults]));
+    },
+    groupedNodes() {
+      const g = {};
+      for (const n of this.nodes) {
+        const tag = n.vps_tag || '默认服务器';
+        if (!g[tag]) g[tag] = [];
+        g[tag].push(n);
+      }
+      return g;
+    },
+    filteredGroupedNodes() {
+      const result = {};
+      const kw = this.nodeSearch.trim().toLowerCase();
+      for (const [tag, list] of Object.entries(this.groupedNodes)) {
+        if (this.selectedVpsFilter !== 'ALL' && tag !== this.selectedVpsFilter) continue;
+        const matched = kw
+          ? list.filter(n =>
+              (n.name || '').toLowerCase().includes(kw) ||
+              (n.uri || '').toLowerCase().includes(kw) ||
+              (n.vps_tag || '').toLowerCase().includes(kw)
+            )
+          : list;
+        if (matched.length > 0) result[tag] = matched;
+      }
+      return result;
+    },
+    filteredParsedProxies() {
+      const kw = this.dashboardSearch.trim().toLowerCase();
+      if (!kw) return this.parsedProxies;
+      return this.parsedProxies.filter(p =>
+        (p.name || '').toLowerCase().includes(kw) ||
+        (p.server || '').toLowerCase().includes(kw) ||
+        (p.type || '').toLowerCase().includes(kw)
+      );
+    },
+    filteredCustomRules() {
+      const kw = this.ruleSearch.trim().toLowerCase();
+      if (!kw) return this.customRules;
+      return this.customRules.filter(r =>
+        (r.value || '').toLowerCase().includes(kw) ||
+        (r.target || '').toLowerCase().includes(kw) ||
+        (r.comment || '').toLowerCase().includes(kw) ||
+        (r.rule_type || '').toLowerCase().includes(kw)
+      );
+    },
+    enabledNodesCount() {
+      return this.nodes.filter(n => n.enabled).length;
+    },
+    totalSubCachedCount() {
+      return this.subscriptions.reduce((acc, s) => acc + (s.enabled ? (s.cached_proxies || []).length : 0), 0);
+    },
+    aiAvailableCount() {
+      const re = /(🇭🇰|hk|hong\s*kong|香港|cn|china|中国|mo|macau|澳门|🇷🇺|ru|russia|俄罗斯|莫斯科)/i;
+      return this.parsedProxies.filter(p => !re.test(p.name || '')).length;
+    },
+    autoSubUrl() {
+      return `${window.location.origin}/sub/${this.settings.sub_token || ''}`;
+    },
+    clashImportUrl() {
+      // 用户手机实测：clash:// 会被小火箭抢走，必须用 flclash:// 唤起 Clash
+      return `flclash://install-config?url=${encodeURIComponent(this.subUrl('mihomo'))}&name=${encodeURIComponent(this.settings.sub_filename || 'SubHub')}`;
+    },
+    singboxImportUrl() {
+      return `sing-box://import-remote-profile?url=${encodeURIComponent(this.subUrl('singbox'))}#${encodeURIComponent(this.settings.sub_filename || 'SubHub')}`;
+    },
+    shadowrocketImportUrl() {
+      const b64 = btoa(unescape(encodeURIComponent(this.subUrl('base64'))));
+      return `sub://${b64}#${encodeURIComponent(this.settings.sub_filename || 'SubHub')}`;
+    }
+  },
+  mounted() {
+    this.applyTheme();
+    if (this.adminToken) {
+      this.fetchState();
+      this.fetchTemplate();
+    }
+  },
+  methods: {
+    toggleTheme() {
+      this.isDark = !this.isDark;
+      localStorage.setItem('subhub_theme', this.isDark ? 'dark' : 'light');
+      this.applyTheme();
+    },
+    applyTheme() {
+      document.documentElement.classList.toggle('dark', this.isDark);
+    },
+    showToast(msg, type = 'info') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 2600);
+    },
+    async api(path, options = {}) {
+      const headers = Object.assign(
+        { 'Content-Type': 'application/json', 'X-Admin-Token': this.adminToken },
+        options.headers || {}
+      );
+      const res = await fetch(path, Object.assign({}, options, { headers }));
+      if (res.status === 401) {
+        this.authed = false;
+        localStorage.removeItem('subhub_token');
+        throw new Error('登录已过期或密码已更改');
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || '操作失败');
+      }
+      return res.json();
+    },
+    async doLogin() {
+      this.loading = true;
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: this.loginPassword })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || '管理密码错误');
+        this.adminToken = data.token;
+        localStorage.setItem('subhub_token', this.adminToken);
+        this.loginPassword = '';
+        await this.fetchState();
+        await this.fetchTemplate();
+      } catch (e) {
+        this.showToast(e.message || '管理密码错误', 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+    logout() {
+      this.authed = false;
+      this.adminToken = '';
+      localStorage.removeItem('subhub_token');
+    },
+    async fetchState() {
+      try {
+        const data = await this.api('/api/state');
+        this.settings = data.settings || {};
+        this.nodes = data.nodes || [];
+        this.subscriptions = data.subscriptions || [];
+        this.customGroups = data.custom_groups || [];
+        this.customRules = data.custom_rules || [];
+        this.availableTargets = data.available_targets || [];
+        this.parsedCount = data.parsed_count || 0;
+        this.parsedProxies = data.parsed_proxies || [];
+        this.authed = true;
+      } catch (e) {}
+    },
+    async fetchTemplate() {
+      try {
+        const data = await this.api('/api/template');
+        this.templateContent = data.content || '';
+      } catch (e) {}
+    },
+    subUrl(target) {
+      return `${window.location.origin}/sub/${this.settings.sub_token || ''}?target=${target}`;
+    },
+    async copyText(text) {
+      // 稳健复制：优先 Clipboard API，降级 textarea，失败给明确 toast
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        }
+      } catch (e) {}
+      if (!ok) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (e) {}
+      }
+      this.showToast(ok ? '已复制到剪贴板' : '复制失败：请长按链接手动复制', ok ? 'info' : 'error');
+    },
+    openQrModal(title, text) {
+      this.qrModal = { show: true, title, text };
+      nextTick(() => {
+        const box = document.getElementById('qrcode-box');
+        if (box) {
+          box.innerHTML = '';
+          new QRCode(box, { text, width: 185, height: 185, colorDark: '#0f172a', colorLight: '#ffffff' });
+        }
+      });
+    },
+    extractProtocol(uri) {
+      if (!uri) return 'NODE';
+      const s = uri.trim().toLowerCase();
+      if (s.startsWith('vless://')) return s.includes('security=reality') ? 'Reality' : 'VLESS';
+      if (s.startsWith('hysteria2://') || s.startsWith('hy2://')) return 'Hy2';
+      if (s.startsWith('tuic://')) return 'TUIC';
+      if (s.startsWith('trojan://')) return 'Trojan';
+      if (s.startsWith('ss://')) return 'SS';
+      if (s.startsWith('vmess://')) return 'VMess';
+      return 'YAML';
+    },
+    protocolBadgeClass(proto) {
+      const p = (proto || '').toLowerCase();
+      if (p.includes('reality') || p.includes('vless')) return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400';
+      if (p.includes('hy2') || p.includes('hysteria')) return 'bg-purple-500/10 text-purple-600 dark:text-purple-400';
+      if (p.includes('tuic')) return 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400';
+      if (p.includes('trojan')) return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
+      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
+    },
+    pingBadgeClass(res) {
+      if (!res || res.status !== 'online') return 'bg-red-500/10 text-red-500';
+      if (res.latency < 150) return 'bg-emerald-500/10 text-emerald-500';
+      return 'bg-amber-500/10 text-amber-500';
+    },
+    displayNodeTitle(n) {
+      if (n.name && n.name.trim()) return n.name.trim();
+      if (n.uri && n.uri.includes('#')) {
+        try { return decodeURIComponent(n.uri.split('#')[1]); } catch (e) { return n.uri.split('#')[1]; }
+      }
+      return this.extractHostPort(n.uri) || '节点';
+    },
+    extractHostPort(uri) {
+      if (!uri) return '';
+      try {
+        if (uri.includes('@')) return uri.split('@')[1].split('?')[0].split('#')[0];
+      } catch (e) {}
+      return uri.slice(0, 30);
+    },
+    openAddForVps(tag) {
+      this.newNodeForm.vps_tag = tag;
+      this.showAddNodeModal = true;
+    },
+    async submitNodes() {
+      if (!this.newNodeForm.raw_input.trim()) return;
+      try {
+        const res = await this.api('/api/nodes', {
+          method: 'POST',
+          body: JSON.stringify(this.newNodeForm)
+        });
+        this.newNodeForm.raw_input = '';
+        this.showAddNodeModal = false;
+        this.showToast(`成功导入 ${res.added} 个节点`);
+        await this.fetchState();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async toggleNode(n) {
+      await this.api(`/api/nodes/${n.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !n.enabled })
+      });
+      await this.fetchState();
+    },
+    openEditNodeModal(n) {
+      this.editingNode = Object.assign({}, n);
+    },
+    async saveEditNode() {
+      if (!this.editingNode) return;
+      await this.api(`/api/nodes/${this.editingNode.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          vps_tag: this.editingNode.vps_tag,
+          name: this.editingNode.name,
+          uri: this.editingNode.uri,
+          priority: this.editingNode.priority
+        })
+      });
+      this.editingNode = null;
+      this.showToast('节点已更新');
+      await this.fetchState();
+    },
+    async removeNode(id) {
+      if (!confirm('确认删除该节点？')) return;
+      await this.api(`/api/nodes/${id}`, { method: 'DELETE' });
+      this.selectedNodeIds = this.selectedNodeIds.filter(x => x !== id);
+      this.showToast('节点已删除');
+      await this.fetchState();
+    },
+    async batchDeleteSelected() {
+      if (!this.selectedNodeIds.length) return;
+      if (!confirm(`确认批量删除选中的 ${this.selectedNodeIds.length} 个节点？`)) return;
+      await this.api('/api/nodes/batch-delete', {
+        method: 'POST',
+        body: JSON.stringify({ node_ids: this.selectedNodeIds })
+      });
+      this.selectedNodeIds = [];
+      this.showToast('批量删除完成');
+      await this.fetchState();
+    },
+    async pingAllNodes() {
+      this.pinging = true;
+      try {
+        const data = await this.api('/api/nodes/ping', { method: 'POST' });
+        this.pingResults = data.results || {};
+        this.showToast('节点 TCP 测速完成');
+      } catch (e) {
+        this.showToast('测速请求失败', 'error');
+      } finally {
+        this.pinging = false;
+      }
+    },
+    async batchToggle(tag, enabled) {
+      await this.api('/api/nodes/batch-toggle', {
+        method: 'POST',
+        body: JSON.stringify({ vps_tag: tag, enabled })
+      });
+      this.showToast(`${tag} 已整组${enabled ? '启用' : '停用'}`);
+      await this.fetchState();
+    },
+    closeSubModal() {
+      this.showAddSubModal = false;
+      this.editingSub = null;
+    },
+    async submitSub() {
+      if (!this.newSubForm.name || !this.newSubForm.url) return;
+      this.showToast('正在拉取远程订阅...');
+      try {
+        await this.api('/api/subs', {
+          method: 'POST',
+          body: JSON.stringify(this.newSubForm)
+        });
+        this.newSubForm = { name: '', url: '', prefix: '', exclude_regex: '剩余流量|到期|官网|套餐|重置' };
+        this.showAddSubModal = false;
+        await this.fetchState();
+        this.showToast('远程订阅已添加');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async toggleSub(s) {
+      await this.api(`/api/subs/${s.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !s.enabled })
+      });
+      await this.fetchState();
+    },
+    openEditSubModal(s) {
+      this.editingSub = Object.assign({}, s);
+    },
+    async saveEditSub() {
+      if (!this.editingSub) return;
+      await this.api(`/api/subs/${this.editingSub.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: this.editingSub.name,
+          url: this.editingSub.url,
+          prefix: this.editingSub.prefix,
+          exclude_regex: this.editingSub.exclude_regex
+        })
+      });
+      this.editingSub = null;
+      this.showToast('订阅源已更新');
+      await this.fetchState();
+    },
+    async removeSub(id) {
+      if (!confirm('确认删除该远程订阅源？')) return;
+      await this.api(`/api/subs/${id}`, { method: 'DELETE' });
+      this.showToast('已删除');
+      await this.fetchState();
+    },
+    async refreshSubs() {
+      this.refreshingSubs = true;
+      try {
+        const res = await this.api('/api/subs/refresh', { method: 'POST' });
+        await this.fetchState();
+        this.showToast(`同步完成，共缓存 ${res.total_fetched} 个节点`);
+      } finally {
+        this.refreshingSubs = false;
+      }
+    },
+    openAddGroupModal() {
+      this.editingGroupId = null;
+      this.groupForm = { name: '', type: 'select', vps_filter: '', name_regex: '', include_direct: false, enabled: true };
+      this.showGroupModal = true;
+    },
+    openEditGroupModal(g) {
+      this.editingGroupId = g.id;
+      this.groupForm = Object.assign({}, g);
+      this.showGroupModal = true;
+    },
+    async saveGroupForm() {
+      if (!this.groupForm.name.trim()) return;
+      try {
+        if (this.editingGroupId) {
+          await this.api(`/api/groups/${this.editingGroupId}`, {
+            method: 'PUT',
+            body: JSON.stringify(this.groupForm)
+          });
+        } else {
+          await this.api('/api/groups', {
+            method: 'POST',
+            body: JSON.stringify(this.groupForm)
+          });
+        }
+        this.showGroupModal = false;
+        this.showToast('分流组已保存');
+        await this.fetchState();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async toggleGroup(g) {
+      await this.api(`/api/groups/${g.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !g.enabled })
+      });
+      await this.fetchState();
+    },
+    async removeGroup(id) {
+      if (!confirm('确认删除该自定义分流组？')) return;
+      await this.api(`/api/groups/${id}`, { method: 'DELETE' });
+      this.showToast('分流组已删除');
+      await this.fetchState();
+    },
+    openAddRuleModal() {
+      this.editingRuleId = null;
+      this.ruleForm = { rule_type: 'DOMAIN-SUFFIX', value: '', target: '🚀 节点选择', comment: '', enabled: true };
+      this.showRuleModal = true;
+    },
+    openEditRuleModal(r) {
+      this.editingRuleId = r.id;
+      this.ruleForm = Object.assign({}, r);
+      this.showRuleModal = true;
+    },
+    async saveRuleForm() {
+      if (!this.ruleForm.value.trim()) return;
+      try {
+        if (this.editingRuleId) {
+          await this.api(`/api/rules/${this.editingRuleId}`, {
+            method: 'PUT',
+            body: JSON.stringify(this.ruleForm)
+          });
+        } else {
+          await this.api('/api/rules', {
+            method: 'POST',
+            body: JSON.stringify(this.ruleForm)
+          });
+        }
+        this.showRuleModal = false;
+        this.showToast('分流规则已保存');
+        await this.fetchState();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async toggleRule(r) {
+      await this.api(`/api/rules/${r.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !r.enabled })
+      });
+      await this.fetchState();
+    },
+    async removeRule(id) {
+      await this.api(`/api/rules/${id}`, { method: 'DELETE' });
+      this.showToast('规则已删除');
+      await this.fetchState();
+    },
+    async applyRulePreset(presetKey) {
+      const presets = {
+        dev: { rule_type: 'DOMAIN-SUFFIX', value: 'github.com,githubusercontent.com,docker.io,docker.com,linux.do,nodeseek.com', target: '🚀 节点选择', comment: '开发者常用站点' },
+        lan: { rule_type: 'DOMAIN-SUFFIX', value: 'lan,local,home.arpa,dpdns.org', target: '🎯 全球直连', comment: '私有与内网直连' },
+        steam: { rule_type: 'DOMAIN-SUFFIX', value: 'steamcontent.com,steamserver.net,dl.steam.clngaa.com', target: '🎯 全球直连', comment: 'Steam下载CDN直连' }
+      };
+      const p = presets[presetKey];
+      if (!p) return;
+      await this.api('/api/rules', { method: 'POST', body: JSON.stringify(p) });
+      this.showToast('已导入预设分流规则');
+      await this.fetchState();
+    },
+    async saveSettings() {
+      await this.api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(this.settings)
+      });
+      this.showToast('全局设置已保存');
+      await this.fetchState();
+    },
+    async changePassword() {
+      // 对齐后端 POST /api/settings/password（字段 current_password / new_password）；
+      // token 即密码原文，改完同步本地登录态，免得被踢下线
+      if (!this.pwdForm.old_password || !this.pwdForm.new_password) {
+        this.showToast('请填写当前密码和新密码', 'error');
+        return;
+      }
+      if (this.pwdForm.new_password.trim().length < 6) {
+        this.showToast('新密码至少 6 位', 'error');
+        return;
+      }
+      try {
+        await this.api('/api/settings/password', {
+          method: 'POST',
+          body: JSON.stringify({
+            current_password: this.pwdForm.old_password,
+            new_password: this.pwdForm.new_password.trim()
+          })
+        });
+        this.adminToken = this.pwdForm.new_password.trim();
+        localStorage.setItem('subhub_token', this.adminToken);
+        this.pwdForm = { old_password: '', new_password: '' };
+        this.showToast('管理员密码已更新，请牢记新密码');
+      } catch (e) {
+        this.showToast(e.message || '修改失败', 'error');
+      }
+    },
+    async exportBackup() {
+      try {
+        const data = await this.api('/api/backup/export');
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `subhub-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast('备份文件已导出');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async importBackup(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        await this.api('/api/backup/import', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        this.showToast('数据备份已成功恢复');
+        await this.fetchState();
+        await this.fetchTemplate();
+      } catch (e) {
+        this.showToast('备份文件格式错误或恢复失败', 'error');
+      } finally {
+        ev.target.value = '';
+      }
+    },
+    async resetToken() {
+      if (!confirm('重置后原订阅链接将立即失效，确认重置？')) return;
+      await this.api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ reset_token: true })
+      });
+      await this.fetchState();
+      this.showToast('订阅 Token 已重置');
+    },
+    async saveTemplateContent() {
+      await this.api('/api/template', {
+        method: 'PUT',
+        body: JSON.stringify({ content: this.templateContent })
+      });
+      this.showToast('YAML 模板已保存');
+    },
+    async openPreview(target = 'mihomo') {
+      this.previewTarget = target;
+      const data = await this.api(`/api/preview?target=${target}`);
+      this.previewContent = data.yaml || data.json || data.content || '';
+      this.previewModal = true;
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
