@@ -4,44 +4,40 @@
 一键生成 Mihomo / Sing-box / Shadowrocket 三端订阅，带 AI 专线防封锁、
 地区自动分组、自定义分流组与分流规则。
 
-## 安装（Docker Compose）
+## 安装
 
-> 预构建镜像已发布到 Docker Hub：`moyelab/subhub:1.0.0`（amd64 / arm64 双架构）。
-> 不想在本地构建时，把 `docker-compose.yml`里的 `build: .`改成 `image: moyelab/subhub:1.0.0`，然后直接 `docker compose up -d` 启动即可。
+
+### 方式一：一条命令启动（推荐）
+
+```bash
+docker run -d \
+  --name=subhub \
+  --restart unless-stopped \
+  -p 18080:8080 \
+  -e ADMIN_PASSWORD=admin123 \
+  -e TZ=Asia/Shanghai \
+  -v ./data:/app/data \
+  moyelab/subhub:1.0.0
+```
+
+浏览器打开 `http://<服务器IP>:18080`，用默认密码 `admin123` 登录，
+登录后在「系统设置」里改成你自己的密码。
+数据保存在命令执行目录下的 `./data`，删容器重建不丢。
+### 方式二：Docker Compose
 
 ```bash
 git clone https://github.com/moye-lab/subhub.git
 cd subhub
 ```
 
-改管理密码（二选一）。
+默认管理密码为 `admin123`，clone 下来直接启动就行，不用改任何文件；
+登录后在网页「系统设置」里改成你自己的密码。
+> 注意：网页「系统设置」里改过的密码优先（存在 `./data` 里）；忘记密码看下面的「忘记管理密码」一节
 
-**方式一：一行命令直接改（推荐）**
-
-```bash
-sed -i 's/admin123/你的密码/' docker-compose.yml
-grep -n "ADMIN_PASSWORD" docker-compose.yml
-```
-
-`grep` 那行是确认用的——必须在输出里看到你的密码才算改成功。
-如果输出的还是别的密码（比如这个文件之前被改过），`sed` 会静默失败，
-这时直接用编辑器改这一行，或改用方式二。
-
-> 注意：如果你曾在网页「系统设置」里改过密码，之后再改这里**不再生效**
-> （设置页里存的密码优先）。忘记密码了看下面的「忘记管理密码」一节。
-
-**方式二：用 .env 文件（适合把配置留档）**
+启动（拉取预构建镜像）：
 
 ```bash
-cp .env.example .env
-```
-
-再用编辑器把 `.env` 里的 `ADMIN_PASSWORD` 改成你的密码。
-
-启动：
-
-```bash
-docker compose up -d --build
+docker compose pull && docker compose up -d
 ```
 
 浏览器打开 `http://<服务器IP>:18080`，输入管理密码进入控制台。
