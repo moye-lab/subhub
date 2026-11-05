@@ -6,6 +6,9 @@
 
 ## 安装（Docker Compose）
 
+> 预构建镜像已发布到 Docker Hub：`moyelab/subhub:1.0.0`（amd64 / arm64 双架构）。
+> 不想在本地构建时，把 `docker-compose.yml`里的 `build: .`改成 `image: moyelab/subhub:1.0.0`，然后直接 `docker compose up -d` 启动即可。
+
 ```bash
 git clone https://github.com/moye-lab/subhub.git
 cd subhub
